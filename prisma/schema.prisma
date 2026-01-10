@@ -1,0 +1,187 @@
+// Rijeka Online - News Publication Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User roles for role-based access control
+enum UserRole {
+  ADMIN        // Full system access
+  EDITOR       // Can publish articles
+  AUTHOR       // Can write articles
+  CONTRIBUTOR  // Can submit drafts
+}
+
+// Article publication status
+enum ArticleStatus {
+  DRAFT      // Work in progress
+  REVIEW     // Submitted for review
+  SCHEDULED  // Scheduled for future publication
+  PUBLISHED  // Live on site
+  ARCHIVED   // Removed from public view
+}
+
+// Users - Authors, editors, admins
+model User {
+  id            String    @id @default(cuid())
+  name          String    @db.VarChar(100)
+  email         String    @unique @db.VarChar(255)
+  password      String    // bcrypt hashed
+  role          UserRole  @default(AUTHOR)
+  bio           String?   @db.Text
+  avatar        String?   // Cloudinary URL
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  articles      Article[]
+  sessions      Session[]
+
+  @@index([email])
+  @@map("users")
+}
+
+// Categories - Main topic classification
+model Category {
+  id            String    @id @default(cuid())
+  name          String    @unique @db.VarChar(100)
+  slug          String    @unique @db.VarChar(100)
+  description   String?   @db.Text
+  color         String    @default("#2563eb") @db.VarChar(7) // Hex color for UI
+  icon          String?   @db.VarChar(50) // Icon name (lucide-react)
+  displayOrder  Int       @default(0)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  articles      Article[]
+
+  @@index([slug])
+  @@index([displayOrder])
+  @@map("categories")
+}
+
+// Tags - Secondary classification (many-to-many)
+model Tag {
+  id            String    @id @default(cuid())
+  name          String    @unique @db.VarChar(50)
+  slug          String    @unique @db.VarChar(50)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  articles      Article[]
+
+  @@index([slug])
+  @@map("tags")
+}
+
+// Articles - Main content
+model Article {
+  id              String        @id @default(cuid())
+  slug            String        @unique @db.VarChar(200)
+
+  // Content
+  title           String        @db.VarChar(200)
+  subtitle        String?       @db.VarChar(300)
+  excerpt         String        @db.VarChar(500)
+  content         Json          // TipTap JSON format
+  contentHtml     String        @db.Text // Rendered HTML for search
+
+  // Featured Image
+  featuredImage   String?       // Cloudinary URL
+  imageCaption    String?       @db.VarChar(300)
+  imageCredit     String?       @db.VarChar(100)
+
+  // Publishing
+  status          ArticleStatus @default(DRAFT)
+  publishedAt     DateTime?
+  scheduledFor    DateTime?
+
+  // Engagement
+  viewCount       Int           @default(0)
+
+  // SEO
+  metaTitle       String?       @db.VarChar(60)
+  metaDescription String?       @db.VarChar(160)
+  keywords        String[]
+
+  // Timestamps
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  authorId        String
+  author          User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  categoryId      String
+  category        Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  tags            Tag[]
+
+  // Indexes for performance
+  @@index([slug])
+  @@index([status, publishedAt])
+  @@index([authorId])
+  @@index([categoryId])
+  @@index([createdAt])
+
+  // Full-text search will be added via PostgreSQL migration with tsvector
+  @@map("articles")
+}
+
+// Sessions - NextAuth.js database sessions
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @db.VarChar(255)
+  userId       String
+  expires      DateTime
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// Verification tokens - For password reset, email verification
+model VerificationToken {
+  identifier String   @db.VarChar(255)
+  token      String   @unique @db.VarChar(255)
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// Site Settings - Global configuration (singleton)
+model SiteSettings {
+  id                  String   @id @default("singleton")
+
+  // General
+  siteName            String   @default("Rijeka Online") @db.VarChar(100)
+  siteDescription     String?  @db.Text
+  logo                String?  // Cloudinary URL
+  favicon             String?  // Cloudinary URL
+
+  // Contact
+  contactEmail        String?  @db.VarChar(255)
+  socialFacebook      String?  @db.VarChar(255)
+  socialTwitter       String?  @db.VarChar(255)
+  socialInstagram     String?  @db.VarChar(255)
+
+  // Features
+  enableComments      Boolean  @default(false)
+  enableNewsletter    Boolean  @default(false)
+
+  updatedAt           DateTime @updatedAt
+
+  @@map("site_settings")
+}
