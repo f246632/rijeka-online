@@ -1,156 +1,99 @@
 import { StatsCard } from "@/components/admin/StatsCard";
 import { ArticleTable } from "@/components/admin/ArticleTable";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { prisma } from "@/lib/prisma";
-import {
-  FileText,
-  CheckCircle,
-  FileEdit,
-  Eye,
-  TrendingUp,
-  Plus,
-} from "lucide-react";
-import Link from "next/link";
+import { FileText, Eye, CheckCircle, Edit } from "lucide-react";
+import { mockArticles } from "@/lib/mockData";
 
-async function getDashboardStats() {
-  const [totalArticles, publishedArticles, draftArticles, totalViews] =
-    await Promise.all([
-      prisma.article.count(),
-      prisma.article.count({ where: { status: "PUBLISHED" } }),
-      prisma.article.count({ where: { status: "DRAFT" } }),
-      prisma.article.aggregate({
-        _sum: {
-          viewCount: true,
-        },
-      }),
-    ]);
+// Use mock data for stats
+async function getStats() {
+  const articles = mockArticles;
 
   return {
-    totalArticles,
-    publishedArticles,
-    draftArticles,
-    totalViews: totalViews._sum.viewCount || 0,
+    total: articles.length,
+    published: articles.filter((a) => a.status === "PUBLISHED").length,
+    drafts: articles.filter((a) => a.status === "DRAFT").length,
+    totalViews: articles.reduce((sum, a) => sum + (a.viewCount || 0), 0),
   };
 }
 
+// Get recent articles from mock data
 async function getRecentArticles() {
-  const articles = await prisma.article.findMany({
-    take: 10,
-    orderBy: { createdAt: "desc" },
-    include: {
-      author: {
-        select: { name: true },
-      },
-      category: {
-        select: { name: true, color: true },
-      },
-    },
-  });
-
-  return articles;
+  return mockArticles.slice(0, 5);
 }
 
 export default async function AdminDashboard() {
-  const [stats, recentArticles] = await Promise.all([
-    getDashboardStats(),
-    getRecentArticles(),
-  ]);
+  const stats = await getStats();
+  const recentArticles = await getRecentArticles();
 
   return (
-    <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Nadzorna ploča</h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Dobrodošli u admin panel Rijeka Online
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/admin/articles/new">
-            <Plus className="mr-2 h-4 w-4" />
-            Novi članak
-          </Link>
-        </Button>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Nadzorna ploča</h1>
+        <p className="text-gray-600 mt-2">Dobrodošli natrag!</p>
       </div>
 
-      {/* Stats cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatsCard
           title="Ukupno članaka"
-          value={stats.totalArticles}
-          description="Svi članci u sustavu"
+          value={stats.total.toString()}
           icon={FileText}
+          description="Svi članci u sustavu"
         />
         <StatsCard
           title="Objavljeno"
-          value={stats.publishedArticles}
-          description="Živih članaka na portalu"
+          value={stats.published.toString()}
           icon={CheckCircle}
-          className="border-green-200 bg-green-50"
+          description="Javno dostupni članci"
+          trend={{ value: 12, isPositive: true }}
         />
         <StatsCard
-          title="Nacrta"
-          value={stats.draftArticles}
-          description="Članci u izradi"
-          icon={FileEdit}
-          className="border-yellow-200 bg-yellow-50"
+          title="Skice"
+          value={stats.drafts.toString()}
+          icon={Edit}
+          description="Članci u pripremi"
         />
         <StatsCard
           title="Ukupni pregledi"
-          value={stats.totalViews.toLocaleString("hr-HR")}
-          description="Svi pregledi članaka"
+          value={stats.totalViews.toLocaleString()}
           icon={Eye}
-          className="border-blue-200 bg-blue-50"
+          description="Svi pregledi članaka"
+          trend={{ value: 8, isPositive: true }}
         />
       </div>
 
-      {/* Quick actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Brze akcije</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Button asChild variant="outline">
-            <Link href="/admin/articles/new">
-              <Plus className="mr-2 h-4 w-4" />
-              Novi članak
-            </Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/admin/articles">
-              <FileText className="mr-2 h-4 w-4" />
-              Svi članci
-            </Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/admin/categories">
-              <TrendingUp className="mr-2 h-4 w-4" />
-              Upravljanje kategorijama
-            </Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/admin/settings">
-              <Eye className="mr-2 h-4 w-4" />
-              Postavke portala
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
+      {/* Quick Actions */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Brze akcije</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <a
+            href="/admin/articles/new"
+            className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <FileText className="w-5 h-5" />
+            Novi članak
+          </a>
+          <a
+            href="/admin/categories"
+            className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+          >
+            Upravljaj kategorijama
+          </a>
+          <a
+            href="/admin/tags"
+            className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+          >
+            Upravljaj oznakama
+          </a>
+        </div>
+      </div>
 
-      {/* Recent articles */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Nedavni članci</CardTitle>
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/admin/articles">Vidi sve</Link>
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <ArticleTable articles={recentArticles} />
-        </CardContent>
-      </Card>
+      {/* Recent Articles */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          Nedavni članci
+        </h2>
+        <ArticleTable articles={recentArticles} />
+      </div>
     </div>
   );
 }
