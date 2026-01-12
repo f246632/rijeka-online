@@ -1,4 +1,4 @@
-import { NextAuthOptions } from "next-auth";
+import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "./prisma";
@@ -32,7 +32,7 @@ declare module "next-auth/jwt" {
   }
 }
 
-export const authOptions: NextAuthOptions = {
+export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: DEV_MODE ? undefined : (PrismaAdapter(prisma) as any),
   session: {
     strategy: "jwt",
@@ -145,4 +145,4 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-};
+});
