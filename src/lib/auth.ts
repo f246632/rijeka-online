@@ -23,9 +23,7 @@ declare module "next-auth" {
     role: UserRole;
     avatar?: string | null;
   }
-}
 
-declare module "next-auth/jwt" {
   interface JWT {
     role: UserRole;
     avatar?: string | null;
@@ -48,10 +46,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials): Promise<any> {
         if (!credentials?.email || !credentials?.password) {
           throw new Error("Email i lozinka su obavezni");
         }
+
+        const email = credentials.email as string;
+        const password = credentials.password as string;
 
         // Development mode - hardcoded test users
         if (DEV_MODE) {
@@ -79,9 +80,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             },
           };
 
-          const devUser = devUsers[credentials.email as keyof typeof devUsers];
+          const devUser = devUsers[email as keyof typeof devUsers];
 
-          if (devUser && devUser.password === credentials.password) {
+          if (devUser && devUser.password === password) {
             console.log("✅ Dev mode login successful:", devUser.email);
             return {
               id: devUser.id,
@@ -99,7 +100,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         try {
           const user = await prisma.user.findUnique({
             where: {
-              email: credentials.email,
+              email: email,
             },
           });
 
@@ -108,7 +109,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           }
 
           const isPasswordValid = await bcrypt.compare(
-            credentials.password,
+            password,
             user.password
           );
 
@@ -139,8 +140,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.role = token.role;
-        session.user.avatar = token.avatar;
+        session.user.role = token.role as UserRole;
+        session.user.avatar = token.avatar as string | null | undefined;
       }
       return session;
     },
