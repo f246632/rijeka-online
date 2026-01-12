@@ -1,8 +1,12 @@
+import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "./prisma";
 import * as bcrypt from "bcryptjs";
 import type { User, UserRole } from "@prisma/client";
+
+// Development mode - allows login without database
+const DEV_MODE = process.env.NODE_ENV === "development" || !process.env.DATABASE_URL;
 
 declare module "next-auth" {
   interface Session {
@@ -21,14 +25,22 @@ declare module "next-auth" {
   }
 }
 
-export const authOptions = {
-  adapter: PrismaAdapter(prisma) as any,
+declare module "next-auth/jwt" {
+  interface JWT {
+    role: UserRole;
+    avatar?: string | null;
+  }
+}
+
+export const authOptions: NextAuthOptions = {
+  adapter: DEV_MODE ? undefined : (PrismaAdapter(prisma) as any),
   session: {
-    strategy: "jwt" as const,
+    strategy: "jwt",
   },
   pages: {
     signIn: "/admin/login",
   },
+  secret: process.env.NEXTAUTH_SECRET,
   providers: [
     CredentialsProvider({
       name: "credentials",
@@ -36,49 +48,96 @@ export const authOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials: any) {
+      async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
           throw new Error("Email i lozinka su obavezni");
         }
 
-        const user = await prisma.user.findUnique({
-          where: {
-            email: credentials.email,
-          },
-        });
+        // Development mode - hardcoded test users
+        if (DEV_MODE) {
+          const devUsers = {
+            "admin@rijeka.online": {
+              id: "dev-admin",
+              email: "admin@rijeka.online",
+              name: "Admin",
+              role: "ADMIN" as UserRole,
+              password: "admin123",
+            },
+            "marko@rijeka.online": {
+              id: "dev-editor",
+              email: "marko@rijeka.online",
+              name: "Marko Horvat",
+              role: "EDITOR" as UserRole,
+              password: "editor123",
+            },
+            "ana@rijeka.online": {
+              id: "dev-author",
+              email: "ana@rijeka.online",
+              name: "Ana Kovač",
+              role: "AUTHOR" as UserRole,
+              password: "author123",
+            },
+          };
 
-        if (!user) {
-          throw new Error("Neispravna email adresa ili lozinka");
+          const devUser = devUsers[credentials.email as keyof typeof devUsers];
+
+          if (devUser && devUser.password === credentials.password) {
+            console.log("✅ Dev mode login successful:", devUser.email);
+            return {
+              id: devUser.id,
+              email: devUser.email,
+              name: devUser.name,
+              role: devUser.role,
+              avatar: null,
+            };
+          } else {
+            throw new Error("Neispravna email adresa ili lozinka");
+          }
         }
 
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password,
-          user.password
-        );
+        // Production mode - database authentication
+        try {
+          const user = await prisma.user.findUnique({
+            where: {
+              email: credentials.email,
+            },
+          });
 
-        if (!isPasswordValid) {
-          throw new Error("Neispravna email adresa ili lozinka");
+          if (!user) {
+            throw new Error("Neispravna email adresa ili lozinka");
+          }
+
+          const isPasswordValid = await bcrypt.compare(
+            credentials.password,
+            user.password
+          );
+
+          if (!isPasswordValid) {
+            throw new Error("Neispravna email adresa ili lozinka");
+          }
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            avatar: user.avatar,
+          };
+        } catch (error) {
+          throw new Error("Greška pri autentifikaciji");
         }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          avatar: user.avatar,
-        };
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, user }: any) {
+    async jwt({ token, user }) {
       if (user) {
         token.role = user.role;
         token.avatar = user.avatar;
       }
       return token;
     },
-    async session({ session, token }: any) {
+    async session({ session, token }) {
       if (session.user) {
         session.user.role = token.role;
         session.user.avatar = token.avatar;
@@ -87,18 +146,3 @@ export const authOptions = {
     },
   },
 };
-
-// Helper function for getting session in Server Components
-export async function auth(): Promise<{
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    role: UserRole;
-    avatar?: string | null;
-  };
-} | null> {
-  // This is a placeholder - NextAuth v5 would use getServerSession
-  // For now, return null to allow build to succeed
-  return null;
-}
