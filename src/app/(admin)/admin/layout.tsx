@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/admin/Sidebar";
+import { MobileMenuButton } from "@/components/admin/MobileMenuButton";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
@@ -32,28 +33,7 @@ export default async function AdminLayout({
         {/* Top bar */}
         <header className="flex h-16 items-center justify-between border-b bg-white px-6">
           <div className="flex items-center gap-4">
-            <button
-              className="lg:hidden"
-              onClick={() => {
-                // Mobile menu toggle will be implemented
-                alert("Mobilni izbornik - za implementaciju");
-              }}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-                className="h-6 w-6"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
-                />
-              </svg>
-            </button>
+            <MobileMenuButton />
             <h1 className="text-xl font-semibold text-gray-900">
               Admin Panel
             </h1>
