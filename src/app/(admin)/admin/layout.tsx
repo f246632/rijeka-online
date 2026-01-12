@@ -1,13 +1,14 @@
 import { Sidebar } from "@/components/admin/Sidebar";
-import { auth } from "@/lib/auth";
+import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { getServerSession } from "next-auth";
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth();
+  const session = await getServerSession(authOptions);
 
   // Temporary: Skip auth check until NextAuth is fully configured
   // if (!session) {
